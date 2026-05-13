@@ -13,11 +13,14 @@ from datetime import date
 import streamlit as st
 
 from contrato import DadosContrato, gerar_pdf
+from extrator import extrair_tudo
 from utils import (
     data_compacta,
     data_por_extenso,
     detecta_e_formata_documento,
     duracao_extensos,
+    formata_cnpj,
+    formata_cpf,
     formata_valor_brl,
     horario_palco_liberado,
     parse_valor,
@@ -71,25 +74,122 @@ st.markdown(
 st.image("malue_logo_black.png", width=180)
 st.title("Gerador de Contrato")
 st.caption(
-    "Preencha os campos abaixo e baixe o contrato pronto. O padrão de pagamento, "
-    "dados bancários, foro e duração de 2 horas já estão fixos."
+    "Cole a mensagem do cliente abaixo, clique em preencher automaticamente e revise. "
+    "Padrão de pagamento, dados bancários, foro e duração de 2 horas já estão fixos."
 )
 
 # ============================================================
-# Formulário
+# Estado inicial
+# ============================================================
+def _defaults() -> dict:
+    return {
+        "nome": "",
+        "doc": "",
+        "endereco": "",
+        "local": "",
+        "cidade": "Goiânia",
+        "data": date.today(),
+        "horario": "23h",
+    }
+
+
+if "dados_form" not in st.session_state:
+    st.session_state.dados_form = _defaults()
+
+# ============================================================
+# Área de extração (fora do form)
+# ============================================================
+st.subheader("Mensagem do cliente")
+texto_cliente = st.text_area(
+    "Cole aqui tudo que o cliente mandou no WhatsApp",
+    height=140,
+    placeholder=(
+        "Ex.: 'Oi! Sou o João da Silva, CPF 123.456.789-09, RG 12.345.678-9, "
+        "endereço Rua das Flores 100 Setor Oeste Goiânia-GO. Festa dia 15/11/2026 "
+        "às 23h no Salão Aurora.'"
+    ),
+    key="texto_cliente",
+)
+
+col_a, col_b = st.columns([2, 1])
+with col_a:
+    if st.button("✨ Preencher automaticamente", type="primary"):
+        if not texto_cliente.strip():
+            st.warning("Cola a mensagem do cliente primeiro.")
+        else:
+            extraido = extrair_tudo(texto_cliente)
+            achados = []
+            if "nome" in extraido:
+                st.session_state.dados_form["nome"] = extraido["nome"]
+                achados.append(f"Nome: {extraido['nome']}")
+            if "doc" in extraido:
+                tipo = extraido["doc_tipo"]
+                if tipo == "CPF":
+                    formatado = formata_cpf(extraido["doc"])
+                else:
+                    formatado = formata_cnpj(extraido["doc"])
+                st.session_state.dados_form["doc"] = formatado
+                achados.append(f"{tipo}: {formatado}")
+            if "endereco" in extraido:
+                st.session_state.dados_form["endereco"] = extraido["endereco"]
+                achados.append(f"Endereço: {extraido['endereco'][:60]}...")
+            if "local" in extraido:
+                st.session_state.dados_form["local"] = extraido["local"]
+                achados.append(f"Local: {extraido['local']}")
+            if "cidade" in extraido:
+                st.session_state.dados_form["cidade"] = extraido["cidade"]
+                achados.append(f"Cidade: {extraido['cidade']}")
+            if "data" in extraido:
+                st.session_state.dados_form["data"] = extraido["data"]
+                achados.append(f"Data: {extraido['data'].strftime('%d/%m/%Y')}")
+            if "horario" in extraido:
+                st.session_state.dados_form["horario"] = extraido["horario"]
+                achados.append(f"Horário: {extraido['horario']}")
+
+            if achados:
+                st.success(
+                    "Identifiquei "
+                    + str(len(achados))
+                    + " campos. Revise abaixo:"
+                )
+                st.markdown(
+                    "<div class='preview-card'>"
+                    + "<br>".join("• " + a for a in achados)
+                    + "</div>",
+                    unsafe_allow_html=True,
+                )
+                st.rerun()
+            else:
+                st.warning(
+                    "Não consegui identificar nada. Preencha manualmente abaixo."
+                )
+
+with col_b:
+    if st.button("🗑️ Limpar tudo"):
+        st.session_state.dados_form = _defaults()
+        st.session_state.texto_cliente = ""
+        st.rerun()
+
+st.divider()
+
+# ============================================================
+# Formulário (campos populáveis)
 # ============================================================
 with st.form("contrato_form", clear_on_submit=False):
     st.subheader("Contratante")
     contratante_nome = st.text_input(
         "Nome completo do contratante",
+        value=st.session_state.dados_form["nome"],
         placeholder="Ex.: João da Silva ou Empresa XPTO LTDA",
     )
     contratante_doc = st.text_input(
         "CPF ou CNPJ",
+        value=st.session_state.dados_form["doc"],
         placeholder="Aceita com ou sem pontuação",
     )
     contratante_endereco = st.text_area(
         "Endereço completo",
+        value=st.session_state.dados_form["endereco"],
         placeholder="Rua, número, bairro, cidade - UF, CEP",
         height=80,
     )
@@ -98,23 +198,27 @@ with st.form("contrato_form", clear_on_submit=False):
     col1, col2 = st.columns(2)
     with col1:
         local_show = st.text_input(
-            "Local do show", placeholder="Ex.: Casa Lis"
+            "Local do show",
+            value=st.session_state.dados_form["local"],
+            placeholder="Ex.: Casa Lis",
         )
     with col2:
         cidade_show = st.text_input(
-            "Cidade do show", placeholder="Ex.: Goiânia"
+            "Cidade do show",
+            value=st.session_state.dados_form["cidade"],
+            placeholder="Ex.: Goiânia",
         )
     col3, col4 = st.columns(2)
     with col3:
         data_show = st.date_input(
             "Data do evento",
-            value=date.today(),
+            value=st.session_state.dados_form["data"],
             format="DD/MM/YYYY",
         )
     with col4:
         horario_show = st.text_input(
             "Horário de início",
-            value="23h",
+            value=st.session_state.dados_form["horario"],
             help="Aceita formatos como '23h', '23:00' ou '23:30'",
         )
 
@@ -210,10 +314,9 @@ if submitted:
     data_assinatura_ext = data_por_extenso(data_assinatura)
     _, duracao_ext, duracao_curto = duracao_dados
 
-    # Padroniza horário pra exibição na cláusula 1.1 (sem zerar minutos se vierem)
+    # Padroniza horário pra exibição na cláusula 1.1
     horario_show_clean = horario_show.strip()
     if not horario_show_clean.endswith("h"):
-        # se a usuária digitou "23:00", mostramos "23h" na 1.1
         h_part = horario_show_clean.split(":")[0]
         horario_show_clean = f"{int(h_part)}h"
 
@@ -240,7 +343,6 @@ if submitted:
 
     st.success("Contrato gerado com sucesso!")
 
-    # Preview dos campos calculados
     st.markdown(
         f"""
         <div class="preview-card">
@@ -268,7 +370,6 @@ if submitted:
         mime="application/pdf",
     )
 
-    # Link de WhatsApp
     mensagem_wpp = (
         f"Olá! Segue em anexo o contrato para o show no dia {data_show_ext}. "
         f"Qualquer dúvida estou à disposição. — MaLuê"
