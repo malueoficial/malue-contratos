@@ -29,7 +29,7 @@ from utils import (
 # ============================================================
 st.set_page_config(
     page_title="Gerador de Contrato MaLuê",
-    page_icon="🎤",
+    page_icon="malue_icon.png",
     layout="centered",
 )
 
@@ -68,7 +68,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("🎤 Gerador de Contrato MaLuê")
+st.image("malue_logo_black.png", width=180)
+st.title("Gerador de Contrato")
 st.caption(
     "Preencha os campos abaixo e baixe o contrato pronto. O padrão de pagamento, "
     "dados bancários, foro e duração de 2 horas já estão fixos."
