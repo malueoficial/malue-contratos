@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import urllib.parse
 from datetime import date
+from pathlib import Path
 
 import requests
 import streamlit as st
@@ -18,6 +19,19 @@ DIAS_SEMANA_PT = [
     "Segunda", "Terça", "Quarta", "Quinta",
     "Sexta", "Sábado", "Domingo",
 ]
+
+# Materiais fixos enviados junto com cada contrato
+# Os PDFs ficam no repo; a URL pública vem do GitHub raw.
+CAMARIM_FILE = "camarim_malue_2026.pdf"
+RIDER_FILE = "rider_malue_2026.pdf"
+CAMARIM_URL = (
+    "https://raw.githubusercontent.com/malueoficial/malue-contratos/main/"
+    + CAMARIM_FILE
+)
+RIDER_URL = (
+    "https://raw.githubusercontent.com/malueoficial/malue-contratos/main/"
+    + RIDER_FILE
+)
 
 
 def dia_semana_pt(d: date) -> str:
@@ -488,8 +502,51 @@ if submitted:
         mime="application/pdf",
     )
 
+    # ============================================================
+    # Materiais fixos (Camarim + Rider) — vão junto com cada contrato
+    # ============================================================
+    st.markdown("---")
+    st.markdown(
+        "**📎 Materiais fixos que vão junto:**  \n"
+        "Camarim e Rider são iguais em todo show. Baixa aqui pra anexar no "
+        "WhatsApp junto com o contrato."
+    )
+    col_cam, col_rid = st.columns(2)
+    try:
+        with open(CAMARIM_FILE, "rb") as fh:
+            camarim_bytes = fh.read()
+        with col_cam:
+            st.download_button(
+                label="🛋️ Baixar Camarim",
+                data=camarim_bytes,
+                file_name="Camarim MaLuê 2026.pdf",
+                mime="application/pdf",
+                key="dl_camarim",
+            )
+    except FileNotFoundError:
+        with col_cam:
+            st.warning("Camarim não encontrado no repo.")
+    try:
+        with open(RIDER_FILE, "rb") as fh:
+            rider_bytes = fh.read()
+        with col_rid:
+            st.download_button(
+                label="🎤 Baixar Rider",
+                data=rider_bytes,
+                file_name="Rider MaLuê 2026.pdf",
+                mime="application/pdf",
+                key="dl_rider",
+            )
+    except FileNotFoundError:
+        with col_rid:
+            st.warning("Rider não encontrado no repo.")
+
     mensagem_wpp = (
-        f"Olá! Segue em anexo o contrato para o show no dia {data_show_ext}. "
+        f"Olá! Segue em anexo o contrato para o show no dia {data_show_ext}, "
+        f"junto com o camarim e o rider técnico.\n\n"
+        f"📄 Contrato: (em anexo)\n"
+        f"🛋️ Camarim: {CAMARIM_URL}\n"
+        f"🎤 Rider: {RIDER_URL}\n\n"
         f"Qualquer dúvida estou à disposição. — MaLuê"
     )
     wpp_url = "https://wa.me/?text=" + urllib.parse.quote(mensagem_wpp)
@@ -502,8 +559,8 @@ if submitted:
           📲 Abrir WhatsApp com mensagem pronta
         </a>
         <small style="display:block;margin-top:0.4rem;color:#666;">
-          Depois de abrir o WhatsApp, escolha o contato e anexe o PDF que você
-          acabou de baixar.
+          Depois de abrir o WhatsApp, escolha o contato e anexe os 3 PDFs
+          (contrato + camarim + rider) que você baixou aqui em cima.
         </small>
         """,
         unsafe_allow_html=True,
