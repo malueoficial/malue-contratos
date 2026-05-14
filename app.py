@@ -465,10 +465,12 @@ if submitted:
     # ============================================================
     # Sobe o PDF pro Drive e grava a URL na agenda (coluna 'Contrato URL')
     # ============================================================
+    contrato_url_publica = ""
     if ok_agenda and sheet_row:
         with st.spinner("Subindo PDF pro Drive..."):
             ok_up, url_ou_erro = upload_contrato_drive(sheet_row, pdf_bytes, nome_arquivo)
         if ok_up:
+            contrato_url_publica = url_ou_erro
             st.info(
                 f"📎 Contrato disponível no Drive — também aparece com botão "
                 f"'Ver contrato' no card desse show no admin.  \n"
@@ -541,10 +543,15 @@ if submitted:
         with col_rid:
             st.warning("Rider não encontrado no repo.")
 
+    contrato_linha = (
+        f"📄 Contrato: {contrato_url_publica}"
+        if contrato_url_publica
+        else "📄 Contrato: (em anexo)"
+    )
     mensagem_wpp = (
-        f"Olá! Segue em anexo o contrato para o show no dia {data_show_ext}, "
+        f"Olá! Segue o contrato para o show no dia {data_show_ext}, "
         f"junto com o camarim e o rider técnico.\n\n"
-        f"📄 Contrato: (em anexo)\n"
+        f"{contrato_linha}\n"
         f"🛋️ Camarim: {CAMARIM_URL}\n"
         f"🎤 Rider: {RIDER_URL}\n\n"
         f"Qualquer dúvida estou à disposição. — MaLuê"
@@ -559,8 +566,9 @@ if submitted:
           📲 Abrir WhatsApp com mensagem pronta
         </a>
         <small style="display:block;margin-top:0.4rem;color:#666;">
-          Depois de abrir o WhatsApp, escolha o contato e anexe os 3 PDFs
-          (contrato + camarim + rider) que você baixou aqui em cima.
+          A mensagem já vai com os 3 links (contrato, camarim e rider) prontos
+          pro cliente clicar e abrir. Os botões de download acima ficam pra
+          caso você queira anexar os PDFs também.
         </small>
         """,
         unsafe_allow_html=True,
