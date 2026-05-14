@@ -560,8 +560,9 @@ if submitted:
             st.warning("Rider não encontrado no repo.")
 
     # Wrap URLs com o tracker pra registrar quando o cliente abrir.
-    # O label combina nome do cliente + data — ajuda na hora de filtrar a aba "Acessos".
-    label_base = f"{contratante_nome.strip()} | {data_show.strftime('%d/%m/%Y')}"
+    # Label = nome|YYYY-MM-DD pra casar com o formato usado no orçamento
+    # (e ser fácil de consultar pelo admin e pela lista de orçamentos).
+    label_base = f"{contratante_nome.strip()} | {data_show.isoformat()}"
     if contrato_url_publica:
         contrato_link = tracker_url(
             "contrato", contrato_url_publica, label=f"{label_base} (contrato)"
