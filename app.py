@@ -7,6 +7,7 @@ Ou hospede gratuitamente no Streamlit Community Cloud (veja INSTRUCOES_DEPLOY.md
 """
 from __future__ import annotations
 
+import base64
 import urllib.parse
 from datetime import date
 
@@ -23,19 +24,66 @@ def dia_semana_pt(d: date) -> str:
     return DIAS_SEMANA_PT[d.weekday()]
 
 
-def adicionar_a_agenda(linha: dict) -> tuple[bool, str]:
-    """POST pro webhook do Apps Script — adiciona linha na agenda."""
+def _webhook_url() -> str:
     try:
-        webhook = st.secrets.get("WEBHOOK_URL", "")
+        return st.secrets.get("WEBHOOK_URL", "") or ""
     except Exception:
-        webhook = ""
+        return ""
+
+
+def adicionar_a_agenda(linha: dict) -> tuple[bool, str, int | None]:
+    """POST pro webhook do Apps Script — adiciona linha na agenda.
+
+    Retorna (ok, msg, row). 'row' é o número da linha criada (1-indexed,
+    com header na linha 1), ou None se falhou ou se o webhook não devolveu.
+    """
+    webhook = _webhook_url()
+    if not webhook:
+        return False, "Webhook não configurado", None
+    try:
+        r = requests.post(webhook, json={"append": linha}, timeout=20)
+        if r.status_code != 200:
+            return False, f"HTTP {r.status_code}", None
+        try:
+            j = r.json()
+        except Exception:
+            return True, "ok (sem row)", None
+        if not j.get("ok"):
+            return False, j.get("error", "erro desconhecido"), None
+        return True, "ok", j.get("row")
+    except Exception as e:
+        return False, str(e), None
+
+
+def upload_contrato_drive(row: int, pdf_bytes: bytes, file_name: str) -> tuple[bool, str]:
+    """Sobe o PDF pro Drive via webhook e grava a URL na coluna 'Contrato URL'.
+
+    Retorna (ok, url_ou_erro).
+    """
+    webhook = _webhook_url()
     if not webhook:
         return False, "Webhook não configurado"
+    if not row:
+        return False, "Row não recebido do append"
     try:
-        r = requests.post(webhook, json={"append": linha}, timeout=15)
+        pdf_b64 = base64.b64encode(pdf_bytes).decode("ascii")
+        payload = {
+            "uploadContrato": {
+                "row": int(row),
+                "pdfBase64": pdf_b64,
+                "fileName": file_name,
+            }
+        }
+        r = requests.post(webhook, json=payload, timeout=60)
         if r.status_code != 200:
             return False, f"HTTP {r.status_code}"
-        return True, "ok"
+        try:
+            j = r.json()
+        except Exception:
+            return False, "resposta não-JSON"
+        if not j.get("ok"):
+            return False, j.get("error", "erro desconhecido")
+        return True, j.get("url", "")
     except Exception as e:
         return False, str(e)
 
@@ -370,6 +418,12 @@ if submitted:
 
     st.success("Contrato gerado com sucesso!")
 
+    # Nome do arquivo PDF (também usado pra subir no Drive)
+    nome_arquivo = (
+        f"Contrato MaLuê - {contratante_nome.strip()} - "
+        f"{data_compacta(data_show)}.pdf"
+    )
+
     # ============================================================
     # Alimenta a agenda automaticamente
     # ============================================================
@@ -385,7 +439,7 @@ if submitted:
         "Status": "Contrato assinado",
         "Observações": f"Contrato gerado em {data_assinatura_ext}",
     }
-    ok_agenda, msg_agenda = adicionar_a_agenda(linha_agenda)
+    ok_agenda, msg_agenda, sheet_row = adicionar_a_agenda(linha_agenda)
     if ok_agenda:
         st.info(
             "📅 Show também foi adicionado à agenda automaticamente. "
@@ -393,6 +447,24 @@ if submitted:
         )
     else:
         st.warning(f"PDF ok, mas não consegui adicionar na agenda ({msg_agenda}). Adicione manualmente.")
+
+    # ============================================================
+    # Sobe o PDF pro Drive e grava a URL na agenda (coluna 'Contrato URL')
+    # ============================================================
+    if ok_agenda and sheet_row:
+        with st.spinner("Subindo PDF pro Drive..."):
+            ok_up, url_ou_erro = upload_contrato_drive(sheet_row, pdf_bytes, nome_arquivo)
+        if ok_up:
+            st.info(
+                f"📎 Contrato disponível no Drive — também aparece com botão "
+                f"'Ver contrato' no card desse show no admin.  \n"
+                f"[Abrir PDF agora]({url_ou_erro})"
+            )
+        else:
+            st.warning(
+                f"PDF gerado e agenda atualizada, mas não consegui subir o "
+                f"contrato pro Drive ({url_ou_erro}). Use o botão de download abaixo."
+            )
 
     st.markdown(
         f"""
@@ -407,11 +479,6 @@ if submitted:
         </div>
         """,
         unsafe_allow_html=True,
-    )
-
-    nome_arquivo = (
-        f"Contrato MaLuê - {contratante_nome.strip()} - "
-        f"{data_compacta(data_show)}.pdf"
     )
 
     st.download_button(
