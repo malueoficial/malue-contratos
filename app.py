@@ -10,7 +10,34 @@ from __future__ import annotations
 import urllib.parse
 from datetime import date
 
+import requests
 import streamlit as st
+
+DIAS_SEMANA_PT = [
+    "Segunda", "Terça", "Quarta", "Quinta",
+    "Sexta", "Sábado", "Domingo",
+]
+
+
+def dia_semana_pt(d: date) -> str:
+    return DIAS_SEMANA_PT[d.weekday()]
+
+
+def adicionar_a_agenda(linha: dict) -> tuple[bool, str]:
+    """POST pro webhook do Apps Script — adiciona linha na agenda."""
+    try:
+        webhook = st.secrets.get("WEBHOOK_URL", "")
+    except Exception:
+        webhook = ""
+    if not webhook:
+        return False, "Webhook não configurado"
+    try:
+        r = requests.post(webhook, json={"append": linha}, timeout=15)
+        if r.status_code != 200:
+            return False, f"HTTP {r.status_code}"
+        return True, "ok"
+    except Exception as e:
+        return False, str(e)
 
 from contrato import DadosContrato, gerar_pdf
 from extrator import extrair_tudo
@@ -342,6 +369,30 @@ if submitted:
         pdf_bytes = gerar_pdf(dados)
 
     st.success("Contrato gerado com sucesso!")
+
+    # ============================================================
+    # Alimenta a agenda automaticamente
+    # ============================================================
+    linha_agenda = {
+        "Data": data_show.strftime("%d/%m/%Y"),
+        "Dia": dia_semana_pt(data_show),
+        "Horário Show": horario_show_clean,
+        "Local": local_show.strip(),
+        "Cidade": cidade_show.strip(),
+        "Contratante": contratante_nome.strip(),
+        "Tipo Evento": "",
+        "Valor": valor_num,
+        "Status": "Contrato assinado",
+        "Observações": f"Contrato gerado em {data_assinatura_ext}",
+    }
+    ok_agenda, msg_agenda = adicionar_a_agenda(linha_agenda)
+    if ok_agenda:
+        st.info(
+            "📅 Show também foi adicionado à agenda automaticamente. "
+            "Confira em [malue-painel.streamlit.app](https://malue-painel.streamlit.app)."
+        )
+    else:
+        st.warning(f"PDF ok, mas não consegui adicionar na agenda ({msg_agenda}). Adicione manualmente.")
 
     st.markdown(
         f"""
