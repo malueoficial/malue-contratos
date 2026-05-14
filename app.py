@@ -45,6 +45,22 @@ def _webhook_url() -> str:
         return ""
 
 
+def tracker_url(tipo: str, dest: str, label: str = "") -> str:
+    """Constrói uma URL que passa pelo tracker (loga + redireciona).
+
+    Se o webhook não estiver disponível, retorna a URL direta.
+    """
+    if not dest:
+        return ""
+    webhook = _webhook_url()
+    if not webhook:
+        return dest
+    params = {"action": "t", "type": tipo, "dest": dest}
+    if label:
+        params["label"] = label
+    return webhook + "?" + urllib.parse.urlencode(params)
+
+
 def adicionar_a_agenda(linha: dict) -> tuple[bool, str, int | None]:
     """POST pro webhook do Apps Script — adiciona linha na agenda.
 
@@ -543,17 +559,25 @@ if submitted:
         with col_rid:
             st.warning("Rider não encontrado no repo.")
 
-    contrato_linha = (
-        f"📄 Contrato: {contrato_url_publica}"
-        if contrato_url_publica
-        else "📄 Contrato: (em anexo)"
-    )
+    # Wrap URLs com o tracker pra registrar quando o cliente abrir.
+    # O label combina nome do cliente + data — ajuda na hora de filtrar a aba "Acessos".
+    label_base = f"{contratante_nome.strip()} | {data_show.strftime('%d/%m/%Y')}"
+    if contrato_url_publica:
+        contrato_link = tracker_url(
+            "contrato", contrato_url_publica, label=f"{label_base} (contrato)"
+        )
+        contrato_linha = f"📄 Contrato: {contrato_link}"
+    else:
+        contrato_linha = "📄 Contrato: (em anexo)"
+    camarim_link = tracker_url("camarim", CAMARIM_URL, label=f"{label_base} (camarim)")
+    rider_link = tracker_url("rider", RIDER_URL, label=f"{label_base} (rider)")
+
     mensagem_wpp = (
         f"Olá! Segue o contrato para o show no dia {data_show_ext}, "
         f"junto com o camarim e o rider técnico.\n\n"
         f"{contrato_linha}\n"
-        f"🛋️ Camarim: {CAMARIM_URL}\n"
-        f"🎤 Rider: {RIDER_URL}\n\n"
+        f"🛋️ Camarim: {camarim_link}\n"
+        f"🎤 Rider: {rider_link}\n\n"
         f"Qualquer dúvida estou à disposição. — MaLuê"
     )
     wpp_url = "https://wa.me/?text=" + urllib.parse.quote(mensagem_wpp)
