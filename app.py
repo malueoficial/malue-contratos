@@ -201,6 +201,13 @@ def _defaults() -> dict:
 if "dados_form" not in st.session_state:
     st.session_state.dados_form = _defaults()
 
+# Estado do último contrato gerado — persistido pra sobreviver reruns
+# (Streamlit re-roda o script toda vez que você clica em qualquer botão,
+# inclusive nos botões de download. Sem isso, a página de pós-geração
+# sumia quando você baixava o camarim/rider.)
+if "last_contract" not in st.session_state:
+    st.session_state.last_contract = None
+
 # ============================================================
 # Área de extração (fora do form)
 # ============================================================
@@ -446,8 +453,6 @@ if submitted:
     with st.spinner("Gerando contrato..."):
         pdf_bytes = gerar_pdf(dados)
 
-    st.success("Contrato gerado com sucesso!")
-
     # Nome do arquivo PDF (também usado pra subir no Drive)
     nome_arquivo = (
         f"Contrato MaLuê - {contratante_nome.strip()} - "
@@ -470,44 +475,90 @@ if submitted:
         "Observações": f"Contrato gerado em {data_assinatura_ext}",
     }
     ok_agenda, msg_agenda, sheet_row = adicionar_a_agenda(linha_agenda)
-    if ok_agenda:
-        st.info(
-            "📅 Show também foi adicionado à agenda automaticamente. "
-            "Confira em [malue-painel.streamlit.app](https://malue-painel.streamlit.app)."
-        )
-    else:
-        st.warning(f"PDF ok, mas não consegui adicionar na agenda ({msg_agenda}). Adicione manualmente.")
 
     # ============================================================
     # Sobe o PDF pro Drive e grava a URL na agenda (coluna 'Contrato URL')
     # ============================================================
     contrato_url_publica = ""
+    upload_msg = None
     if ok_agenda and sheet_row:
         with st.spinner("Subindo PDF pro Drive..."):
             ok_up, url_ou_erro = upload_contrato_drive(sheet_row, pdf_bytes, nome_arquivo)
         if ok_up:
             contrato_url_publica = url_ou_erro
-            st.info(
-                f"📎 Contrato disponível no Drive — também aparece com botão "
-                f"'Ver contrato' no card desse show no admin.  \n"
-                f"[Abrir PDF agora]({url_ou_erro})"
-            )
         else:
-            st.warning(
-                f"PDF gerado e agenda atualizada, mas não consegui subir o "
-                f"contrato pro Drive ({url_ou_erro}). Use o botão de download abaixo."
-            )
+            upload_msg = url_ou_erro
+
+    # ============================================================
+    # Salva TUDO em session_state pra a página sobreviver reruns
+    # (sem isso, clicar em "Baixar Camarim/Rider" faz a página re-renderizar
+    # e perder a tela de pós-geração)
+    # ============================================================
+    st.session_state.last_contract = {
+        "pdf_bytes": pdf_bytes,
+        "nome_arquivo": nome_arquivo,
+        "contratante_nome": contratante_nome.strip(),
+        "data_show": data_show,
+        "data_show_ext": data_show_ext,
+        "contrato_url_publica": contrato_url_publica,
+        "tipo_doc": tipo_doc,
+        "doc_formatado": doc_formatado,
+        "valor_num": valor_num,
+        "valor_ext": valor_ext,
+        "horario_show_clean": horario_show_clean,
+        "exemplo_liberacao": exemplo_liberacao,
+        "duracao_ext": duracao_ext,
+        "data_assinatura_ext": data_assinatura_ext,
+        "agenda_ok": ok_agenda,
+        "agenda_msg": msg_agenda,
+        "upload_msg": upload_msg,
+    }
+
+
+# ============================================================
+# RENDERIZAÇÃO da página de pós-geração
+# Renderiza a partir do session_state, pra sobreviver reruns
+# (quando ela clica "Baixar Camarim/Rider", o Streamlit re-roda o script;
+# sem session_state, todo esse bloco sumia.)
+# ============================================================
+if st.session_state.last_contract:
+    lc = st.session_state.last_contract
+
+    st.success("Contrato gerado com sucesso!")
+
+    if lc["agenda_ok"]:
+        st.info(
+            "📅 Show também foi adicionado à agenda automaticamente. "
+            "Confira em [malue-painel.streamlit.app](https://malue-painel.streamlit.app)."
+        )
+    else:
+        st.warning(
+            f"PDF ok, mas não consegui adicionar na agenda ({lc['agenda_msg']}). "
+            "Adicione manualmente."
+        )
+
+    if lc["contrato_url_publica"]:
+        st.info(
+            f"📎 Contrato disponível no Drive — também aparece com botão "
+            f"'Ver contrato' no card desse show no admin.  \n"
+            f"[Abrir PDF agora]({lc['contrato_url_publica']})"
+        )
+    elif lc["upload_msg"]:
+        st.warning(
+            f"PDF gerado e agenda atualizada, mas não consegui subir o "
+            f"contrato pro Drive ({lc['upload_msg']}). Use o botão de download abaixo."
+        )
 
     st.markdown(
         f"""
         <div class="preview-card">
           <b>Resumo:</b><br>
-          • {tipo_doc} validado: {doc_formatado}<br>
-          • Valor: <b>{valor_num}</b> ({valor_ext})<br>
-          • Evento: {data_show_ext} às {horario_show_clean}<br>
-          • Palco liberado em: {exemplo_liberacao}<br>
-          • Duração: {duracao_ext}<br>
-          • Assinatura: {data_assinatura_ext}
+          • {lc['tipo_doc']} validado: {lc['doc_formatado']}<br>
+          • Valor: <b>{lc['valor_num']}</b> ({lc['valor_ext']})<br>
+          • Evento: {lc['data_show_ext']} às {lc['horario_show_clean']}<br>
+          • Palco liberado em: {lc['exemplo_liberacao']}<br>
+          • Duração: {lc['duracao_ext']}<br>
+          • Assinatura: {lc['data_assinatura_ext']}
         </div>
         """,
         unsafe_allow_html=True,
@@ -515,9 +566,10 @@ if submitted:
 
     st.download_button(
         label="📥 Baixar contrato em PDF",
-        data=pdf_bytes,
-        file_name=nome_arquivo,
+        data=lc["pdf_bytes"],
+        file_name=lc["nome_arquivo"],
         mime="application/pdf",
+        key="dl_contrato",
     )
 
     # ============================================================
@@ -562,10 +614,10 @@ if submitted:
     # Wrap URLs com o tracker pra registrar quando o cliente abrir.
     # Label = nome|YYYY-MM-DD pra casar com o formato usado no orçamento
     # (e ser fácil de consultar pelo admin e pela lista de orçamentos).
-    label_base = f"{contratante_nome.strip()} | {data_show.isoformat()}"
-    if contrato_url_publica:
+    label_base = f"{lc['contratante_nome']} | {lc['data_show'].isoformat()}"
+    if lc["contrato_url_publica"]:
         contrato_link = tracker_url(
-            "contrato", contrato_url_publica, label=f"{label_base} (contrato)"
+            "contrato", lc["contrato_url_publica"], label=f"{label_base} (contrato)"
         )
         contrato_linha = f"📄 Contrato: {contrato_link}"
     else:
@@ -574,7 +626,7 @@ if submitted:
     rider_link = tracker_url("rider", RIDER_URL, label=f"{label_base} (rider)")
 
     mensagem_wpp = (
-        f"Olá! Segue o contrato para o show no dia {data_show_ext}, "
+        f"Olá! Segue o contrato para o show no dia {lc['data_show_ext']}, "
         f"junto com o camarim e o rider técnico.\n\n"
         f"{contrato_linha}\n"
         f"🛋️ Camarim: {camarim_link}\n"
@@ -598,3 +650,10 @@ if submitted:
         """,
         unsafe_allow_html=True,
     )
+
+    # Botão pra começar um contrato novo (limpa o estado)
+    st.markdown("---")
+    if st.button("🆕 Gerar outro contrato (limpa esta tela)", key="reset_contract"):
+        st.session_state.last_contract = None
+        st.session_state.dados_form = _defaults()
+        st.rerun()
