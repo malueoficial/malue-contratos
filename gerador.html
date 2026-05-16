@@ -1,0 +1,926 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Gerador de orçamento · MaLuê</title>
+<!-- PWA / Add to Home Screen -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Orçamento" />
+<meta name="theme-color" content="#0a0a0a" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="icon" type="image/png" href="apple-touch-icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a0a; --bg-soft:#141414; --ink:#ffffff; --ink-soft:#9a9a9a;
+    --accent:#d4ff3a; --accent-ink:#0a0a0a; --radius:18px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh}
+  .wrap{max-width:720px;margin:0 auto;padding:40px 20px 80px}
+  .logo{font-family:'Anton',sans-serif;font-size:28px;letter-spacing:.04em}
+  .logo span{color:var(--accent)}
+  .eyebrow{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);margin-top:24px;display:block}
+  h1{font-family:'Anton',sans-serif;font-size:44px;line-height:1;text-transform:uppercase;margin:8px 0 28px}
+  p.sub{color:var(--ink-soft);font-size:14px;margin-bottom:32px;line-height:1.55}
+
+  form{display:grid;gap:18px}
+  .row{display:grid;gap:6px}
+  .row.two{grid-template-columns:1fr 1fr;gap:14px}
+  .row.two > div{display:grid;gap:6px}
+  @media (max-width:560px){.row.two{grid-template-columns:1fr}}
+
+  label{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);font-weight:600}
+  input, select{
+    background:var(--bg-soft);border:1px solid #222;color:var(--ink);
+    padding:14px 16px;border-radius:12px;font-size:15px;font-family:inherit;font-weight:500;
+    outline:0;transition:border-color .15s;
+  }
+  input:focus, select:focus{border-color:var(--accent)}
+
+  .output{background:var(--bg-soft);border-radius:var(--radius);padding:22px;margin-top:28px;border:1px solid #1e1e1e}
+  .output h3{font-size:12px;letter-spacing:.15em;text-transform:uppercase;color:var(--accent);margin-bottom:10px}
+  .output .preview{background:#0a0a0a;border-radius:10px;padding:14px;font-family:'SF Mono',Menlo,monospace;font-size:12.5px;color:var(--ink);word-break:break-all;line-height:1.5;border:1px solid #1a1a1a;white-space:pre-wrap}
+
+  .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:13px 20px;border-radius:999px;font-weight:700;font-size:13.5px;text-decoration:none;cursor:pointer;border:0;font-family:inherit;transition:transform .15s ease, opacity .15s ease}
+  .btn:active{transform:scale(.97)}
+  .btn-primary{background:var(--accent);color:var(--accent-ink)}
+  .btn-secondary{background:#1f1f1f;color:var(--ink);border:1px solid #2a2a2a}
+  .btn-ok{background:#25d366;color:#fff}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--accent);color:var(--accent-ink);padding:14px 22px;border-radius:999px;font-weight:700;font-size:13px;opacity:0;transition:all .25s ease;pointer-events:none;z-index:10}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  details{background:var(--bg-soft);border:1px solid #1e1e1e;border-radius:14px;padding:14px 18px;margin-top:28px}
+  details summary{cursor:pointer;font-size:13px;color:var(--ink-soft);font-weight:600;letter-spacing:.04em}
+  details[open] summary{color:var(--ink);margin-bottom:10px}
+  details p{font-size:13px;color:var(--ink-soft);line-height:1.55;margin-top:8px}
+  details input{margin-top:8px;width:100%}
+
+  .pill{display:inline-block;background:rgba(212,255,58,.12);color:var(--accent);padding:4px 10px;border-radius:999px;font-size:11px;font-weight:600;letter-spacing:.05em;margin-left:8px;vertical-align:middle}
+
+  .ctx-card{
+    background:linear-gradient(180deg, rgba(212,255,58,.06), rgba(212,255,58,0));
+    border:1px solid rgba(212,255,58,.25);
+    border-radius:var(--radius);padding:18px 20px;margin-bottom:24px;
+  }
+  .ctx-card .ctx-title{
+    font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);
+    font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px;
+  }
+  .ctx-card .ctx-title::before{content:"●";font-size:8px}
+  .ctx-card dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:14px}
+  .ctx-card dt{color:var(--ink-soft);font-weight:600}
+  .ctx-card dd{color:var(--ink);font-weight:500}
+  .ctx-card .hint{margin-top:10px;font-size:12px;color:var(--ink-soft);font-style:italic}
+
+  /* Aviso de conflito na agenda */
+  .conflito-aviso{
+    border-radius:12px;padding:14px 16px;margin-top:8px;
+    font-size:13px;line-height:1.5;
+    transition:opacity .2s;
+  }
+  .conflito-aviso.loading{
+    background:#141414;border:1px solid #222;color:var(--ink-soft);
+  }
+  .conflito-aviso.ok{
+    background:rgba(37,211,102,.08);border:1px solid rgba(37,211,102,.35);color:#7ee9a8;
+  }
+  .conflito-aviso.warn{
+    background:rgba(255,180,60,.08);border:1px solid rgba(255,180,60,.45);color:#ffd28a;
+  }
+  .conflito-aviso.warn b{color:#ffb43c}
+  .conflito-aviso.info{
+    background:#141414;border:1px solid #2a2a2a;color:var(--ink-soft);
+  }
+  .conflito-aviso ul{margin:8px 0 0 0;padding:0;list-style:none}
+  .conflito-aviso li{margin-top:6px;padding-left:14px;position:relative}
+  .conflito-aviso li::before{content:"•";position:absolute;left:0;color:#ffb43c}
+  .conflito-aviso .nota{margin-top:10px;font-size:12px;font-style:italic;opacity:.85}
+
+  /* Card de paste — colar mensagem do WhatsApp e auto-preencher */
+  .paste-card{
+    background:linear-gradient(180deg, rgba(212,255,58,.05), rgba(212,255,58,0));
+    border:1px solid rgba(212,255,58,.2);
+    border-radius:var(--radius);
+    padding:16px 18px;
+    margin-bottom:22px;
+  }
+  .paste-card .paste-label{
+    font-size:11px;letter-spacing:.15em;text-transform:uppercase;
+    color:var(--accent);font-weight:700;margin-bottom:8px;
+    display:flex;align-items:center;gap:6px;
+  }
+  .paste-card .paste-label::before{content:"✨"}
+  .paste-card .paste-hint{
+    font-size:12px;color:var(--ink-soft);margin-bottom:10px;line-height:1.45;
+  }
+  .paste-card textarea{
+    width:100%;min-height:80px;
+    background:var(--bg-soft);border:1px solid #222;color:var(--ink);
+    padding:11px 13px;border-radius:10px;font-size:13.5px;
+    font-family:inherit;font-weight:400;outline:0;
+    transition:border-color .15s;resize:vertical;
+  }
+  .paste-card textarea:focus{border-color:var(--accent)}
+  .paste-card .paste-actions{
+    display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;
+  }
+  .paste-card .paste-actions button{
+    background:#1f1f1f;color:var(--ink);border:1px solid #2a2a2a;
+    padding:9px 14px;border-radius:999px;font-size:12.5px;font-weight:600;
+    cursor:pointer;font-family:inherit;letter-spacing:.03em;
+    transition:all .15s;
+  }
+  .paste-card .paste-actions button.primary{
+    background:var(--accent);color:var(--accent-ink);border-color:var(--accent);
+  }
+  .paste-card .paste-actions button.primary:hover{
+    transform:translateY(-1px);
+  }
+  .paste-card .paste-actions button:hover{border-color:var(--accent)}
+  .paste-result{
+    margin-top:12px;font-size:12.5px;line-height:1.5;
+    padding:10px 12px;border-radius:8px;background:#0a0a0a;border:1px solid #1a1a1a;
+    color:var(--ink-soft);display:none;
+  }
+  .paste-result.show{display:block}
+  .paste-result.ok{border-color:rgba(212,255,58,.3);color:var(--ink)}
+  .paste-result.empty{border-color:rgba(255,180,60,.3);color:#ffd28a}
+  .paste-result b{color:var(--accent);font-weight:700}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+    <div class="logo">Ma<span>Luê</span></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <a href="formulario.html" style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);text-decoration:none;padding:8px 14px;border:1px solid #2a2a2a;border-radius:999px">Formulário cliente</a>
+      <a href="lista.html" style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);text-decoration:none;padding:8px 14px;border:1px solid #2a2a2a;border-radius:999px">Ver orçamentos →</a>
+    </div>
+  </div>
+  <span class="eyebrow">Painel interno</span>
+  <h1>Gerador de<br/>orçamento</h1>
+  <p class="sub">Preencha os dados do cliente. A página gera o link da proposta e a mensagem de WhatsApp prontos pra você copiar e colar.</p>
+
+  <!-- Card pra colar a mensagem do cliente e auto-preencher -->
+  <div class="paste-card">
+    <div class="paste-label">Cole a mensagem do cliente</div>
+    <div class="paste-hint">
+      Copia a mensagem do WhatsApp/Instagram do cliente e cola aqui — eu tento
+      identificar nome, data, tipo de evento, local e horário sozinho. Você
+      revisa antes de gerar a proposta.
+    </div>
+    <textarea id="textoCliente" placeholder="Ex.: 'Oi! Sou a Marina, tô organizando meu casamento dia 15/11/2026, vai ser no Espaço Villa em Goiânia, começa às 22h. Esperamos uns 250 convidados.'"></textarea>
+    <div class="paste-actions">
+      <button type="button" id="btnExtrair" class="primary">✨ Preencher automaticamente</button>
+      <button type="button" id="btnLimparTexto">🗑️ Limpar texto</button>
+    </div>
+    <div class="paste-result" id="pasteResult"></div>
+  </div>
+
+  <!-- Card aparece automaticamente quando o gerador é aberto pelo link do formulário do cliente -->
+  <div class="ctx-card" id="ctxCard" hidden>
+    <div class="ctx-title">Pedido recebido pelo formulário</div>
+    <dl id="ctxList"></dl>
+    <div class="hint">Os campos abaixo já foram preenchidos com base no que o cliente respondeu. Confira, ajuste o tipo de evento se quiser, defina o valor e gere a proposta.</div>
+  </div>
+
+  <form id="f" autocomplete="off">
+    <div class="row">
+      <label for="nome">Nome do cliente</label>
+      <input id="nome" placeholder="Ex.: Marina Costa" required>
+    </div>
+
+    <div class="row two">
+      <div>
+        <label for="evento">Tipo de evento</label>
+        <input id="evento" placeholder="Ex.: Casamento" required>
+      </div>
+      <div>
+        <label for="data">Data do evento</label>
+        <input id="data" type="date" required>
+        <div id="conflitoAviso" class="conflito-aviso" hidden></div>
+      </div>
+    </div>
+
+    <div class="row two">
+      <div>
+        <label for="valor">Valor do show (R$)</label>
+        <input id="valor" type="text" inputmode="numeric" placeholder="Ex.: 18500" required>
+      </div>
+      <div>
+        <label for="validade">Validade da proposta <span class="pill">+4 dias</span></label>
+        <input id="validade" type="date" required>
+      </div>
+    </div>
+  </form>
+
+  <div class="output">
+    <h3>Link da proposta</h3>
+    <div class="preview" id="urlOut">—</div>
+    <div class="actions">
+      <button class="btn btn-primary" id="copyUrl" type="button">Copiar link</button>
+      <a class="btn btn-secondary" id="openUrl" target="_blank" rel="noopener">Abrir prévia ↗</a>
+    </div>
+  </div>
+
+  <div class="output">
+    <h3>Mensagem para o WhatsApp</h3>
+    <div class="preview" id="msgOut">—</div>
+    <div class="actions">
+      <button class="btn btn-ok" id="copyMsg" type="button">Copiar mensagem</button>
+    </div>
+  </div>
+
+  <div class="output" style="border:1px solid rgba(212,255,58,.3);background:linear-gradient(180deg, rgba(212,255,58,.04), var(--bg-soft))">
+    <h3 style="color:var(--accent)">Quando fechar o contrato</h3>
+    <p style="font-size:13.5px;color:var(--ink-soft);line-height:1.55;margin-bottom:14px;margin-top:-4px">
+      Quando o cliente confirmar e o contrato fechar, toca aqui. Marca como fechado na lista e copia a linha pronta pra você colar na sua agenda do Google Sheets.
+    </p>
+    <div class="actions">
+      <button class="btn btn-primary" id="confirmFechado" type="button">✓ Fechado — copiar linha pra agenda</button>
+    </div>
+    <div style="margin-top:12px;padding:10px 14px;background:#0a0a0a;border-radius:10px;font-size:12px;color:var(--ink-soft);line-height:1.55;border:1px solid #1a1a1a">
+      <b style="color:var(--ink)">Como colar na agenda:</b><br>
+      1. Abre a planilha (Agenda MaLuê v2 ou a sua atual)<br>
+      2. Clica na próxima linha vazia, primeira coluna (A)<br>
+      3. Cmd+V no Mac ou Ctrl+V no Windows — o Google Sheets distribui os campos sozinho.
+    </div>
+  </div>
+
+  <details>
+    <summary>Configuração avançada</summary>
+    <p>URL pública da sua página de orçamento (onde você hospedou o <code>orcamento.html</code>). Esta configuração fica salva no seu navegador.</p>
+    <input id="baseUrl" type="url" placeholder="https://orcamento.malue.com.br/orcamento.html">
+  </details>
+</div>
+
+<div class="toast" id="toast">Copiado ✓</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const STORAGE_KEY = 'malue.baseUrl';
+
+  /* ---------- URL base persistida ---------- */
+  const baseDefault = location.href.replace(/gerador\.html.*$/, '');
+  $('baseUrl').value = localStorage.getItem(STORAGE_KEY) || baseDefault;
+  $('baseUrl').addEventListener('input', e => localStorage.setItem(STORAGE_KEY, e.target.value.trim()));
+
+  /* ---------- preenche datas padrão ---------- */
+  const hoje = new Date();
+  const plus4 = new Date(hoje); plus4.setDate(plus4.getDate()+4);
+  const iso = d => d.toISOString().slice(0,10);
+  $('validade').value = iso(plus4);
+
+  /* ---------- formatadores ---------- */
+  function fmtData(s){
+    if(!s) return '—';
+    const [y,m,d] = s.split('-');
+    const dt = new Date(+y,+m-1,+d);
+    return dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
+  }
+  function fmtValor(v){
+    const n = Number(String(v).replace(/[^\d]/g,''));
+    return n ? n.toLocaleString('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:0}) : 'R$ —';
+  }
+
+  /* ---------- prefill via querystring (vindo do formulario.html do cliente) ---------- */
+  const PREFILL = (function readPrefill(){
+    const p = new URLSearchParams(location.search);
+    return {
+      nome:       p.get('nome')       || '',
+      evento:     p.get('evento')     || '',
+      data:       p.get('data')       || '',
+      local:      p.get('local')      || '',
+      horario:    p.get('horario')    || '',
+      convidados: p.get('convidados') || '',
+    };
+  })();
+  (function prefillFromForm(){
+    const {nome, evento, data, local, horario, convidados} = PREFILL;
+
+    if(nome)   $('nome').value   = nome;
+    if(evento) $('evento').value = evento;
+    if(data)   $('data').value   = data;
+
+    const hasAny = nome || evento || data || local || horario || convidados;
+    if(hasAny){
+      const list = $('ctxList');
+      const rows = [
+        ['Nome',       nome],
+        ['Data',       data ? fmtData(data) : null],
+        ['Tipo',       evento],
+        ['Local',      local],
+        ['Início do show', horario || 'a combinar'],
+        ['Convidados', convidados],
+      ];
+      list.innerHTML = rows
+        .filter(([_,v]) => v)
+        .map(([k,v]) => '<dt>'+k+'</dt><dd>'+String(v).replace(/</g,'&lt;')+'</dd>')
+        .join('');
+      $('ctxCard').hidden = false;
+    }
+  })();
+
+  /* ===================================================================
+     EXTRAÇÃO automática de mensagem do cliente
+     ===================================================================
+     Recebe texto solto (WhatsApp, instagram) e tenta extrair:
+     nome, data (YYYY-MM-DD), evento, local, horario (Hh ou HhMM), convidados.
+     Espelha (parcial) o que o gerador de contrato faz em Python.
+     =================================================================== */
+
+  const MESES = {
+    janeiro:1, fevereiro:2, marco:3, "março":3, abril:4, maio:5, junho:6,
+    julho:7, agosto:8, setembro:9, outubro:10, novembro:11, dezembro:12,
+    jan:1, fev:2, mar:3, abr:4, mai:5, jun:6, jul:7, ago:8, set:9, "out":10, nov:11, dez:12
+  };
+  function _norm(s){
+    return s.normalize('NFKD').replace(/[̀-ͯ]/g,'').toLowerCase();
+  }
+
+  function extrairNome(t){
+    // 1) "Sou o/a NOME"
+    let m = t.match(/\b(?:sou\s+(?:o|a)|me\s+chamo|aqui\s+(?:é|e|fala)\s+(?:o|a)?\s*)\s*([A-ZÁÊÉÍÓÚÂÃÕÇ][\wÁÊÉÍÓÚÂÃÕÇáêéíóúâãõç]+(?:\s+[\wÁÊÉÍÓÚÂÃÕÇáêéíóúâãõç]+){0,4})/i);
+    if(m){ const n = _limpaNome(m[1]); if(n) return n; }
+    // 2) Linha "Nome: X"
+    for(const line of t.split('\n')){
+      m = line.match(/^\s*(?:nome|cliente|contratante|empresa)\s*[:\-]\s*(.+)/i);
+      if(m){ const n = _limpaNome(m[1]); if(n) return n; }
+    }
+    // 3) "Aqui é fulano" / "Oi, é fulano"
+    m = t.match(/(?:oi[,!\s]+(?:é|e)|aqui[,!\s]+(?:é|e))\s+([A-ZÁÊÉÍÓÚÂÃÕÇ][\wÁÊÉÍÓÚÂÃÕÇáêéíóúâãõç]+(?:\s+[\wÁÊÉÍÓÚÂÃÕÇáêéíóúâãõç]+){0,3})/i);
+    if(m){ const n = _limpaNome(m[1]); if(n) return n; }
+    return null;
+  }
+  function _limpaNome(s){
+    s = s.trim().replace(/[.,;!?]+$/,'').trim();
+    if(s.length < 3 || s.length > 80) return '';
+    if(/\d/.test(s)) return '';
+    return s.replace(/\s+/g,' ');
+  }
+
+  function extrairData(t){
+    // 1) DD/MM/YYYY ou DD-MM-YYYY ou DD/MM/YY
+    for(const m of t.matchAll(/\b(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\b/g)){
+      let d = parseInt(m[1],10), mo = parseInt(m[2],10), y;
+      if(m[3]){ y = parseInt(m[3],10); if(y<100) y += 2000; }
+      else y = new Date().getFullYear();
+      if(d>=1 && d<=31 && mo>=1 && mo<=12 && y>=2024 && y<=2100){
+        return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      }
+    }
+    // 2) "DD de mês de YYYY"
+    const norm = _norm(t);
+    for(const [nome, num] of Object.entries(MESES)){
+      const re = new RegExp(`\\b(\\d{1,2})\\s+(?:de\\s+)?${nome}(?:\\s+(?:de\\s+)?(\\d{2,4}))?`,'i');
+      const m = norm.match(re);
+      if(m){
+        const d = parseInt(m[1],10);
+        let y = m[2] ? parseInt(m[2],10) : new Date().getFullYear();
+        if(y<100) y += 2000;
+        if(d>=1 && d<=31 && y>=2024 && y<=2100){
+          return `${y}-${String(num).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        }
+      }
+    }
+    return null;
+  }
+
+  function extrairEvento(t){
+    const norm = _norm(t);
+    if(/casamento|matrim/.test(norm)) return 'Casamento';
+    if(/15\s*anos|debutante|quinze\s*anos/.test(norm)) return '15 anos';
+    if(/formatura/.test(norm)) return 'Formatura';
+    if(/aniversari|aniver|niver|aniversari/.test(norm)) return 'Aniversário';
+    if(/corporativ|empresa|congresso|workshop/.test(norm)) return 'Corporativo';
+    if(/festa\s+(?:junina|de\s+sao\s+joao)/.test(norm)) return 'Festa Junina';
+    if(/carnaval|bloco/.test(norm)) return 'Carnaval';
+    if(/bar\b|pub\b|boteco/.test(norm)) return 'Bar';
+    // Label explícito
+    for(const line of t.split('\n')){
+      const m = line.match(/^\s*(?:tipo|evento|tipo\s+de\s+evento|ocasi[ãa]o)\s*[:\-]\s*(.+)/i);
+      if(m){ const v = m[1].trim().replace(/[.,;!?]+$/,''); if(v.length>=3 && v.length<=40) return v; }
+    }
+    return null;
+  }
+
+  function extrairLocal(t){
+    // 1) Label
+    for(const line of t.split('\n')){
+      const m = line.match(/^\s*(?:local|onde|sal[ãa]o|espa[çc]o)\s*[:\-]\s*(.+)/i);
+      if(m){ const v = m[1].trim().replace(/[.,;!?]+$/,''); if(v.length>=2 && v.length<=120) return v; }
+    }
+    // 2) "vai ser no/na" ou "será no/na" ou "acontece no/na"
+    let m = t.match(/\b(?:vai\s+ser|sera|será|acontece|festa\s+ser[áa]|evento\s+ser[áa])\s+(?:dia\s+\S+\s+)?(?:[àa]s\s+\S+\s+)?(?:no|na|em)\s+(?:o\s+|a\s+)?([A-ZÁÊÉÍÓÚÂÃÕÇ][^\n,.!?]{2,80})/i);
+    if(m){ const v = m[1].trim().replace(/[.,;!?]+$/,''); if(v.length>=2) return v; }
+    // 3) "no Espaço X" / "no Salão X" / "no Buffet X" / "no Chácara X"
+    m = t.match(/\b(?:no|na)\s+(Espa[çc]o\s+[^\n,.!?]{2,60}|Sal[ãa]o\s+[^\n,.!?]{2,60}|Buffet\s+[^\n,.!?]{2,60}|Ch[áa]cara\s+[^\n,.!?]{2,60}|Casa\s+[A-ZÁÊÉÍÓÚÂÃÕÇ][^\n,.!?]{2,60}|Hotel\s+[^\n,.!?]{2,60})/i);
+    if(m){ const v = m[1].trim().replace(/[.,;!?]+$/,''); return v; }
+    return null;
+  }
+
+  function extrairHorario(t){
+    // Label
+    for(const line of t.split('\n')){
+      const m = line.match(/^\s*hor[áa]rio\s*[:\-]\s*(\d{1,2})(?:[h:](\d{2}))?/i);
+      if(m) return _fmtH(m[1], m[2]);
+    }
+    // "às 22h" / "as 22h30" / "começa 23h"
+    let m = t.match(/\b(?:[àa]s|inicio|in[ií]cio|come[çc]a|por\s+volta\s+das?)\s+(\d{1,2})(?:[h:](\d{2}))?\s*(?:h|horas?)?/i);
+    if(m) return _fmtH(m[1], m[2]);
+    // "22h" ou "22h30" direto
+    m = t.match(/\b(\d{1,2})h(\d{2})?\b/);
+    if(m) return _fmtH(m[1], m[2]);
+    return null;
+  }
+  function _fmtH(h, mm){
+    const H = parseInt(h,10);
+    const M = mm ? parseInt(mm,10) : 0;
+    if(H<0 || H>23 || M<0 || M>59) return null;
+    return M===0 ? H + ':00' : H + ':' + String(M).padStart(2,'0');
+  }
+
+  // Convidados em faixas que casam com os chips do formulário
+  function extrairConvidados(t){
+    const m = t.match(/\b(?:(\d{2,4}))\s*(?:convidad|pessoa|pax|gente|visitant)/i);
+    if(!m) return null;
+    const n = parseInt(m[1],10);
+    if(n <= 50)       return '10 a 50';
+    else if(n <= 100) return '50 a 100';
+    else if(n <= 300) return '100 a 300';
+    else if(n <= 700) return '300 a 700';
+    else              return '+700';
+  }
+
+  function extrairTudo(t){
+    const r = {};
+    const n = extrairNome(t);    if(n) r.nome = n;
+    const d = extrairData(t);    if(d) r.data = d;
+    const e = extrairEvento(t);  if(e) r.evento = e;
+    const l = extrairLocal(t);   if(l) r.local = l;
+    const h = extrairHorario(t); if(h) r.horario = h;
+    const c = extrairConvidados(t); if(c) r.convidados = c;
+    return r;
+  }
+
+  /* ---------- Wiring do paste-card ---------- */
+  function aplicarExtracao(){
+    const txt = $('textoCliente').value.trim();
+    const result = $('pasteResult');
+    if(!txt){
+      result.className = 'paste-result show empty';
+      result.innerHTML = '⚠️ Cola a mensagem do cliente primeiro.';
+      return;
+    }
+    const ex = extrairTudo(txt);
+    const achados = [];
+
+    if(ex.nome){    $('nome').value   = ex.nome;   achados.push('Nome: <b>'+ex.nome+'</b>'); }
+    if(ex.evento){  $('evento').value = ex.evento; achados.push('Evento: <b>'+ex.evento+'</b>'); }
+    if(ex.data){    $('data').value   = ex.data;   achados.push('Data: <b>'+fmtData(ex.data)+'</b>'); }
+
+    // Convidados e local/horário vão pro card de contexto, já que o form
+    // do gerador só tem 5 campos (nome, evento, data, valor, validade).
+    // Mas se vier do prefill via querystring, mostra no ctxCard.
+    if(ex.local || ex.horario || ex.convidados){
+      const ctxList = $('ctxList');
+      const rows = [
+        ['Local', ex.local],
+        ['Início do show', ex.horario],
+        ['Convidados', ex.convidados],
+      ].filter(([_,v]) => v);
+      // Preserva conteúdo existente do ctxCard, mas adiciona o que faltava
+      const html = rows.map(([k,v]) =>
+        '<dt>'+k+'</dt><dd>'+String(v).replace(/</g,'&lt;')+'</dd>'
+      ).join('');
+      if(html){
+        ctxList.innerHTML = (ctxList.innerHTML || '') + html;
+        $('ctxCard').hidden = false;
+        rows.forEach(([k,v]) => achados.push(k + ': <b>'+v+'</b>'));
+      }
+    }
+
+    if(achados.length === 0){
+      result.className = 'paste-result show empty';
+      result.innerHTML = '⚠️ Não consegui identificar nada. Preenche manualmente abaixo.';
+      return;
+    }
+
+    result.className = 'paste-result show ok';
+    result.innerHTML = '✓ Identifiquei <b>'+achados.length+'</b> campo'+(achados.length===1?'':'s')+
+      ' — confere antes de gerar:<br>' + achados.map(a => '• ' + a).join('<br>');
+    // Dispara o update pra atualizar link/mensagem/conflict-check
+    update();
+    updateConflitoAviso();
+  }
+  $('btnExtrair').addEventListener('click', aplicarExtracao);
+  $('btnLimparTexto').addEventListener('click', () => {
+    $('textoCliente').value = '';
+    $('pasteResult').className = 'paste-result';
+    $('pasteResult').innerHTML = '';
+    $('textoCliente').focus();
+  });
+  // Cmd/Ctrl + Enter no textarea = extrair
+  $('textoCliente').addEventListener('keydown', e => {
+    if((e.metaKey || e.ctrlKey) && e.key === 'Enter'){
+      e.preventDefault();
+      aplicarExtracao();
+    }
+  });
+  // Detecta imagem colada (screenshot) — avisa que ainda não tem OCR
+  $('textoCliente').addEventListener('paste', e => {
+    const items = e.clipboardData && e.clipboardData.items;
+    if(!items) return;
+    for(const item of items){
+      if(item.type && item.type.indexOf('image') === 0){
+        e.preventDefault();
+        const result = $('pasteResult');
+        result.className = 'paste-result show empty';
+        result.innerHTML =
+          '📷 Você colou um print. Por enquanto só funciona com texto — ' +
+          'copia a mensagem como texto (segura no balão da mensagem no WhatsApp → Copiar).';
+        return;
+      }
+    }
+  });
+
+  /* ---------- Tracker de cliques (orçamento) ---------- */
+  // URL pública do Apps Script — mesma do webhook de escrita na agenda.
+  const TRACKER_BASE = 'https://script.google.com/macros/s/AKfycbyhGtpoLzypPBo2csNL0c_z8k8S51A9nzXhLFGKrAQiB4D7hEec2RL6Wj4bBGWVBnCt/exec';
+  // Encurtador central — malue-shows resolve slug → URL real e mantém o tracking.
+  const MALUE_SHOWS_BASE = 'https://malue-shows.streamlit.app';
+
+  function trackerUrl(tipo, dest, label){
+    if(!dest) return '';
+    const p = new URLSearchParams({
+      action: 't',
+      type:   tipo,
+      dest:   dest,
+    });
+    if(label) p.set('label', label);
+    return TRACKER_BASE + '?' + p.toString();
+  }
+
+  // Slug = mesmo formato do Apps Script: contratante slugificado + ddmm.
+  function slugify(s){
+    return String(s || '')
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .substring(0, 40);
+  }
+  function ddmmFromISO(dataISO){
+    // 'YYYY-MM-DD' -> 'ddmm'
+    if(!dataISO || !dataISO.includes('-')) return '';
+    const [, m, d] = dataISO.split('-');
+    return (d || '') + (m || '');
+  }
+  function makeSlug(nome, dataISO){
+    const base = slugify(nome);
+    const dd = ddmmFromISO(dataISO);
+    if(!base) return dd || 'orc';
+    return dd ? (base + '-' + dd) : base;
+  }
+  function shortOrcamentoUrl(nome, dataISO){
+    const slug = makeSlug(nome, dataISO);
+    return MALUE_SHOWS_BASE + '/?o=' + encodeURIComponent(slug);
+  }
+
+  // Salva o orçamento na aba "Orcamentos" via Apps Script (fire-and-forget).
+  // Isso é o que faz o link curto funcionar — sem o save, malue-shows não acha o orçamento.
+  function saveQuoteToSheet(q){
+    if(!q || !q.nome || !q.data) return;
+    try {
+      // POST text/plain pra evitar preflight CORS
+      fetch(TRACKER_BASE, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify({
+          saveQuote: {
+            nome: q.nome,
+            evento: q.evento,
+            data: q.data,
+            valor: q.valor,
+            validade: q.validade,
+            whatsapp: q.whatsapp || '',
+            url: q.urlDireta || ''
+          }
+        })
+      }).catch(() => {});
+    } catch(e) {}
+  }
+
+  /* ---------- gera link e mensagem ---------- */
+  function update(){
+    const nome   = $('nome').value.trim();
+    const evento = $('evento').value.trim();
+    const dataE  = $('data').value;
+    const valor  = $('valor').value.replace(/[^\d]/g,'');
+    const valid  = $('validade').value;
+    const base   = ($('baseUrl').value || baseDefault).trim();
+
+    if(!nome || !evento || !dataE || !valor || !valid){
+      $('urlOut').textContent = 'Preencha todos os campos…';
+      $('msgOut').textContent = '—';
+      $('openUrl').removeAttribute('href');
+      return;
+    }
+
+    const params = new URLSearchParams({
+      nome, evento, data: dataE, valor, validade: valid
+    });
+    const urlDireta = base + '?' + params.toString();
+    const urlCurta  = shortOrcamentoUrl(nome, dataE);
+    // Mantemos o tracker antigo só como fallback interno (não usado na mensagem).
+    const labelLog  = nome + ' | ' + dataE;
+    // urlTracker = trackerUrl('orcamento', urlDireta, labelLog);
+
+    // O que vai pro cliente (via copiar link / copiar mensagem) é a URL CURTA.
+    // O malue-shows resolve o slug pra URL real e registra o acesso.
+    // A "Abrir prévia" usa a direta — você não conta nas suas próprias conferências.
+    $('urlOut').textContent = urlCurta;
+    $('openUrl').href = urlDireta;
+
+    const msg =
+      'Oi, ' + nome + '! Aqui é da MaLuê 💛\n\n' +
+      'Preparei uma proposta personalizada pro seu ' + evento.toLowerCase() +
+      ' no dia ' + fmtData(dataE) + '.\n\n' +
+      'Dá uma olhada (tem vídeos das nossas apresentações, role até o final pra ver o investimento):\n' +
+      urlCurta + '\n\n' +
+      '⚠️ Esta proposta é válida até ' + fmtData(valid) + '.\n' +
+      'Qualquer dúvida, é só me chamar por aqui!';
+
+    $('msgOut').textContent = msg;
+  }
+  document.querySelectorAll('#f input').forEach(el => el.addEventListener('input', update));
+  $('baseUrl').addEventListener('input', update);
+  update();
+
+  /* ---------- copiar ---------- */
+  function toast(t){
+    const el = $('toast'); el.textContent = t; el.classList.add('show');
+    clearTimeout(window._t); window._t = setTimeout(()=>el.classList.remove('show'),1600);
+  }
+  async function copy(text){
+    try { await navigator.clipboard.writeText(text); toast('Copiado ✓'); }
+    catch{ const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast('Copiado ✓'); }
+  }
+  /* ---------- histórico de orçamentos (localStorage privado) ---------- */
+  const QUOTES_KEY = 'malue.quotes';
+  function getQuotes(){
+    try { return JSON.parse(localStorage.getItem(QUOTES_KEY) || '[]'); }
+    catch { return []; }
+  }
+  function saveQuote(extra){
+    const nome = $('nome').value.trim();
+    const evento = $('evento').value.trim();
+    const data = $('data').value;
+    const valor = $('valor').value.replace(/[^\d]/g,'');
+    const validade = $('validade').value;
+    if(!nome || !evento || !data || !valor || !validade) return null;
+    const id = (nome + '|' + evento + '|' + data).toLowerCase().replace(/\s+/g,'-');
+    const quotes = getQuotes();
+    const i = quotes.findIndex(q => q.id === id);
+    const prev = i >= 0 ? quotes[i] : null;
+    const quote = Object.assign(
+      { criadoEm: new Date().toISOString() },
+      prev || {},
+      { id, nome, evento, data, valor, validade,
+        local: PREFILL.local || (prev && prev.local) || '',
+        horario: PREFILL.horario || (prev && prev.horario) || '',
+        convidados: PREFILL.convidados || (prev && prev.convidados) || '',
+      },
+      extra || {}
+    );
+    if(i >= 0) quotes[i] = quote;
+    else quotes.unshift(quote);
+    localStorage.setItem(QUOTES_KEY, JSON.stringify(quotes));
+    return quote;
+  }
+
+  function persistQuoteIfPossible(){
+    const q = saveQuote();
+    if(!q) return;
+    // Sincroniza com o Apps Script (aba Orcamentos) — sem isso o link curto não acha.
+    const nome = $('nome').value.trim();
+    const dataE = $('data').value;
+    saveQuoteToSheet({
+      nome,
+      evento: $('evento').value.trim(),
+      data: dataE,
+      valor: $('valor').value.replace(/[^\d]/g,''),
+      validade: $('validade').value,
+      whatsapp: (q.whatsapp || ''),
+      urlDireta: (($('baseUrl').value || baseDefault).trim()) + '?' +
+                 (new URLSearchParams({
+                   nome, evento: $('evento').value.trim(),
+                   data: dataE,
+                   valor: $('valor').value.replace(/[^\d]/g,''),
+                   validade: $('validade').value
+                 })).toString()
+    });
+  }
+  $('copyUrl').addEventListener('click', ()=>{ persistQuoteIfPossible(); copy($('urlOut').textContent); });
+  $('copyMsg').addEventListener('click', ()=>{ persistQuoteIfPossible(); copy($('msgOut').textContent); });
+
+  /* ---------- contrato fechado → linha pronta pra agenda ---------- */
+  function buildAgendaRow(q){
+    // Colunas (tab-separated, na ordem da planilha v2):
+    // Data | Dia | Evento | Tipo | Contratante | Local | Horário | Som/Luz | Valor | Pagamento | Status | Observações | Origem
+    const valorN = Number(String(q.valor).replace(/[^\d]/g,'')) || '';
+    const tipoLower = (q.evento || '').toLowerCase();
+    let tipo = q.evento || '';
+    // Normaliza tipo pra valores comuns da agenda
+    if(/casamento/.test(tipoLower)) tipo = 'Casamento';
+    else if(/anivers|niver/.test(tipoLower)) tipo = 'Aniversário';
+    else if(/15\s?anos|debutante/.test(tipoLower)) tipo = '15 anos';
+    else if(/corporativ|empresa/.test(tipoLower)) tipo = 'Corporativo';
+    else if(/formatura/.test(tipoLower)) tipo = 'Formatura';
+    else if(/bar\b|pub/.test(tipoLower)) tipo = 'Bar';
+    else if(/aula da saudade/.test(tipoLower)) tipo = 'Aula da saudade';
+
+    const obs = [
+      q.convidados ? 'Convidados: ' + q.convidados : '',
+      'Valor pelo gerador. Validade da proposta: ' + q.validade,
+    ].filter(Boolean).join(' · ');
+
+    const eventoLabel = (tipo && q.nome) ? (tipo + ' ' + q.nome) : (q.nome || q.evento || '');
+
+    const cells = [
+      q.data || '',                   // Data
+      '',                             // Dia (fórmula na planilha)
+      eventoLabel,                    // Evento
+      tipo,                           // Tipo
+      q.nome || '',                   // Contratante
+      q.local || '',                  // Local
+      q.horario || '',                // Horário show
+      '',                             // Som/Luz (preencher na planilha)
+      valorN,                         // Valor (R$)
+      'Pendente',                     // Pagamento
+      'Confirmado',                   // Status
+      obs,                            // Observações
+      'Gerador',                      // Origem
+    ];
+    // Tab-separated, com sanitização básica (sem tabs/newlines no conteúdo)
+    return cells.map(v => String(v).replace(/[\t\r\n]+/g,' ').trim()).join('\t');
+  }
+
+  /* ====================================================================
+     Conflict check com a Agenda MaLuê (Google Sheets público via CSV)
+     ==================================================================== */
+  const AGENDA_SHEET_ID = '13ibY4_88N7pTK2lrLkNcudGeVyh78Kry6Y60Ijp0JD4';
+  const AGENDA_CSV_URL =
+    'https://docs.google.com/spreadsheets/d/' + AGENDA_SHEET_ID + '/export?format=csv';
+
+  let _agendaCache = null;
+  let _agendaFetchPromise = null;
+
+  function parseCSV(txt){
+    const rows = []; let row = []; let cur = ''; let inQ = false;
+    for(let i=0; i<txt.length; i++){
+      const c = txt[i];
+      if(inQ){
+        if(c === '"' && txt[i+1] === '"'){ cur += '"'; i++; }
+        else if(c === '"'){ inQ = false; }
+        else cur += c;
+      } else {
+        if(c === '"') inQ = true;
+        else if(c === ','){ row.push(cur); cur = ''; }
+        else if(c === '\n'){ row.push(cur); rows.push(row); row = []; cur = ''; }
+        else if(c === '\r'){ /* skip */ }
+        else cur += c;
+      }
+    }
+    if(cur.length || row.length){ row.push(cur); rows.push(row); }
+    if(!rows.length) return [];
+    const headers = rows[0].map(h => h.trim());
+    return rows.slice(1)
+      .filter(r => r.some(c => c && c.trim()))
+      .map(r => {
+        const o = {};
+        headers.forEach((h, i) => { o[h] = (r[i] || '').trim(); });
+        return o;
+      });
+  }
+
+  async function fetchAgenda(){
+    if(_agendaCache) return _agendaCache;
+    if(_agendaFetchPromise) return _agendaFetchPromise;
+    _agendaFetchPromise = (async () => {
+      try {
+        const r = await fetch(AGENDA_CSV_URL, { cache: 'no-store' });
+        if(!r.ok) throw new Error('HTTP ' + r.status);
+        const txt = await r.text();
+        _agendaCache = parseCSV(txt);
+        return _agendaCache;
+      } catch(err){
+        console.warn('[agenda] fetch falhou:', err);
+        _agendaFetchPromise = null; // permite retry
+        return null;
+      }
+    })();
+    return _agendaFetchPromise;
+  }
+
+  function isoFromSheetDate(s){
+    if(!s) return null;
+    s = s.trim();
+    // ISO direto (YYYY-MM-DD)
+    if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0,10);
+    // BR DD/MM/YYYY
+    let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if(m){
+      const dd = m[1].padStart(2,'0'), mm = m[2].padStart(2,'0'), yyyy = m[3];
+      return yyyy + '-' + mm + '-' + dd;
+    }
+    return null;
+  }
+
+  function tituloDoShow(row){
+    return row['Local'] || row['Evento'] || row['Contratante'] || '(sem título)';
+  }
+  function horarioDoShow(row){
+    return row['Horário show'] || row['Horario show'] || row['Horário'] || row['Horario'] || '';
+  }
+
+  async function updateConflitoAviso(){
+    const aviso = $('conflitoAviso');
+    if(!aviso) return;
+    const dataISO = $('data').value;
+    if(!dataISO){
+      aviso.hidden = true;
+      aviso.innerHTML = '';
+      return;
+    }
+    aviso.hidden = false;
+    aviso.className = 'conflito-aviso loading';
+    aviso.innerHTML = '⏳ Verificando agenda…';
+
+    const agenda = await fetchAgenda();
+    if(!agenda){
+      aviso.className = 'conflito-aviso info';
+      aviso.innerHTML = '⚠️ Não consegui consultar a agenda agora. Confira manualmente antes de enviar.';
+      return;
+    }
+
+    const hits = agenda.filter(row => isoFromSheetDate(row['Data']) === dataISO);
+
+    if(hits.length === 0){
+      aviso.className = 'conflito-aviso ok';
+      aviso.innerHTML = '✓ Data livre na agenda.';
+      return;
+    }
+
+    const itens = hits.map(h => {
+      const t = tituloDoShow(h);
+      const hr = horarioDoShow(h);
+      const tipo = h['Tipo'] ? ' (' + h['Tipo'] + ')' : '';
+      return '<li>' +
+        '<b style="color:#fff">' + t.replace(/</g,'&lt;') + '</b>' +
+        tipo.replace(/</g,'&lt;') +
+        (hr ? ' — <span style="color:#fff">🕐 ' + hr.replace(/</g,'&lt;') + '</span>' : '') +
+      '</li>';
+    }).join('');
+
+    aviso.className = 'conflito-aviso warn';
+    aviso.innerHTML =
+      '⚠️ <b>ATENÇÃO:</b> já tem ' + hits.length + ' show' + (hits.length>1?'s':'') + ' nessa data:' +
+      '<ul>' + itens + '</ul>' +
+      '<div class="nota">Avaliar compatibilidade de horários antes de enviar a proposta.</div>';
+  }
+
+  $('data').addEventListener('input', updateConflitoAviso);
+  $('data').addEventListener('change', updateConflitoAviso);
+  // Roda no load — caso a data tenha vindo prefilled pelo formulário
+  if($('data').value) updateConflitoAviso();
+
+  $('confirmFechado').addEventListener('click', () => {
+    const nome = $('nome').value.trim();
+    const evento = $('evento').value.trim();
+    const data = $('data').value;
+    const valor = $('valor').value.replace(/[^\d]/g,'');
+    if(!nome || !evento || !data || !valor){
+      toast('Preencha os campos primeiro');
+      return;
+    }
+    if(!confirm('Marcar este orçamento como FECHADO?\n\n' + nome + ' · ' + evento + ' · ' + data)) return;
+    const q = saveQuote({ status: 'fechado', fechadoEm: new Date().toISOString() });
+    if(!q){ toast('Erro ao salvar'); return; }
+    const row = buildAgendaRow(q);
+    copy(row);
+    toast('Linha copiada — cola na agenda ✓');
+  });
+</script>
+
+</body>
+</html>
