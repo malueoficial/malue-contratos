@@ -8,6 +8,8 @@ Ou hospede gratuitamente no Streamlit Community Cloud (veja INSTRUCOES_DEPLOY.md
 from __future__ import annotations
 
 import base64
+import re
+import unicodedata
 import urllib.parse
 from datetime import date
 from pathlib import Path
@@ -33,9 +35,79 @@ RIDER_URL = (
     + RIDER_FILE
 )
 
+# Encurtador central — links curtos e rastreáveis pra mandar no WhatsApp
+MALUE_SHOWS_BASE = "https://malue-shows.streamlit.app"
+
 
 def dia_semana_pt(d: date) -> str:
     return DIAS_SEMANA_PT[d.weekday()]
+
+
+def _slugify(s: str) -> str:
+    """Tira acentos, lowercase, troca não-alfa-num por hífen. Igual ao Apps Script."""
+    s = unicodedata.normalize("NFD", str(s or ""))
+    s = "".join(c for c in s if unicodedata.category(c) != "Mn")
+    s = s.lower()
+    s = re.sub(r"[^a-z0-9]+", "-", s)
+    s = s.strip("-")
+    return s[:40]
+
+
+def make_slug(contratante: str, data_show) -> str:
+    """Gera slug igual ao Apps Script: '<nome-slug>-<ddmm>'.
+
+    Aceita data_show como date, 'YYYY-MM-DD' ou 'DD/MM/YYYY'.
+    """
+    base = _slugify(contratante)
+    dd = ""
+    if hasattr(data_show, "strftime"):
+        dd = data_show.strftime("%d%m")
+    elif data_show:
+        s = str(data_show)
+        if "-" in s:
+            parts = s.split("-")
+            if len(parts) >= 3:
+                dd = parts[2].zfill(2) + parts[1].zfill(2)
+        elif "/" in s:
+            parts = s.split("/")
+            if len(parts) >= 2:
+                dd = parts[0].zfill(2) + parts[1].zfill(2)
+    if base and dd:
+        return f"{base}-{dd}"
+    return base or dd or "show"
+
+
+def normalize_horario(h: str) -> str:
+    """Normaliza horário preservando minutos.
+
+    Aceita: '21:30', '21h30', '21h', '21:30h', '21'.
+    Retorna: '21h' (sem minutos) ou '21h30' (com minutos).
+    """
+    h = (h or "").strip().lower()
+    if not h:
+        return ""
+    # Se termina com 'h' (ex.: '21h', '21:00h', '23h30')
+    if h.endswith("h"):
+        body = h[:-1]
+    else:
+        body = h
+    # Troca 'h' interno (ex.: '21h30') por ':'
+    body = body.replace("h", ":")
+    if ":" in body:
+        parts = body.split(":")
+        try:
+            hh = int(parts[0])
+            mm = int(parts[1]) if len(parts) > 1 and parts[1].strip() else 0
+        except (ValueError, IndexError):
+            return h if h.endswith("h") else h + "h"
+        if mm == 0:
+            return f"{hh}h"
+        return f"{hh}h{mm:02d}"
+    try:
+        hh = int(body)
+        return f"{hh}h"
+    except ValueError:
+        return h if h.endswith("h") else h + "h"
 
 
 def _webhook_url() -> str:
@@ -59,6 +131,11 @@ def tracker_url(tipo: str, dest: str, label: str = "") -> str:
     if label:
         params["label"] = label
     return webhook + "?" + urllib.parse.urlencode(params)
+
+
+def short_url(tipo_letra: str, slug: str) -> str:
+    """Monta link curto via malue-shows. tipo_letra: 'c', 'r', 'cam', 'o'."""
+    return f"{MALUE_SHOWS_BASE}/?{tipo_letra}={urllib.parse.quote(slug)}"
 
 
 def adicionar_a_agenda(linha: dict) -> tuple[bool, str, int | None]:
@@ -116,6 +193,7 @@ def upload_contrato_drive(row: int, pdf_bytes: bytes, file_name: str) -> tuple[b
         return True, j.get("url", "")
     except Exception as e:
         return False, str(e)
+
 
 from contrato import DadosContrato, gerar_pdf
 from extrator import extrair_tudo
@@ -426,11 +504,9 @@ if submitted:
     data_assinatura_ext = data_por_extenso(data_assinatura)
     _, duracao_ext, duracao_curto = duracao_dados
 
-    # Padroniza horário pra exibição na cláusula 1.1
-    horario_show_clean = horario_show.strip()
-    if not horario_show_clean.endswith("h"):
-        h_part = horario_show_clean.split(":")[0]
-        horario_show_clean = f"{int(h_part)}h"
+    # Padroniza horário pra exibição na cláusula 1.1 — PRESERVA os minutos!
+    # Antes: "21:30" virava "21h" (perdia os minutos). Agora: "21:30" → "21h30".
+    horario_show_clean = normalize_horario(horario_show)
 
     dados = DadosContrato(
         contratante_nome=contratante_nome.strip(),
@@ -489,10 +565,11 @@ if submitted:
         else:
             upload_msg = url_ou_erro
 
+    # Calcula slug pra usar nos links curtos do malue-shows
+    slug = make_slug(contratante_nome.strip(), data_show)
+
     # ============================================================
     # Salva TUDO em session_state pra a página sobreviver reruns
-    # (sem isso, clicar em "Baixar Camarim/Rider" faz a página re-renderizar
-    # e perder a tela de pós-geração)
     # ============================================================
     st.session_state.last_contract = {
         "pdf_bytes": pdf_bytes,
@@ -512,14 +589,12 @@ if submitted:
         "agenda_ok": ok_agenda,
         "agenda_msg": msg_agenda,
         "upload_msg": upload_msg,
+        "slug": slug,
     }
-
 
 # ============================================================
 # RENDERIZAÇÃO da página de pós-geração
 # Renderiza a partir do session_state, pra sobreviver reruns
-# (quando ela clica "Baixar Camarim/Rider", o Streamlit re-roda o script;
-# sem session_state, todo esse bloco sumia.)
 # ============================================================
 if st.session_state.last_contract:
     lc = st.session_state.last_contract
@@ -529,7 +604,7 @@ if st.session_state.last_contract:
     if lc["agenda_ok"]:
         st.info(
             "📅 Show também foi adicionado à agenda automaticamente. "
-            "Confira em [malue-painel.streamlit.app](https://malue-painel.streamlit.app)."
+            "Confira em [malue-admin.streamlit.app](https://malue-admin.streamlit.app)."
         )
     else:
         st.warning(
@@ -540,7 +615,7 @@ if st.session_state.last_contract:
     if lc["contrato_url_publica"]:
         st.info(
             f"📎 Contrato disponível no Drive — também aparece com botão "
-            f"'Ver contrato' no card desse show no admin.  \n"
+            f"'Ver contrato' no card desse show no admin. \n"
             f"[Abrir PDF agora]({lc['contrato_url_publica']})"
         )
     elif lc["upload_msg"]:
@@ -577,7 +652,7 @@ if st.session_state.last_contract:
     # ============================================================
     st.markdown("---")
     st.markdown(
-        "**📎 Materiais fixos que vão junto:**  \n"
+        "**📎 Materiais fixos que vão junto:** \n"
         "Camarim e Rider são iguais em todo show. Baixa aqui pra anexar no "
         "WhatsApp junto com o contrato."
     )
@@ -611,26 +686,26 @@ if st.session_state.last_contract:
         with col_rid:
             st.warning("Rider não encontrado no repo.")
 
-    # Wrap URLs com o tracker pra registrar quando o cliente abrir.
-    # Label = nome|YYYY-MM-DD pra casar com o formato usado no orçamento
-    # (e ser fácil de consultar pelo admin e pela lista de orçamentos).
-    label_base = f"{lc['contratante_nome']} | {lc['data_show'].isoformat()}"
+    # ============================================================
+    # Mensagem pro WhatsApp com LINKS CURTOS via malue-shows
+    # ============================================================
+    # Os links curtos malue-shows.streamlit.app/?c=slug resolvem via Apps Script,
+    # contam o acesso (mesma aba "Acessos") e redirecionam pro PDF real.
+    slug = lc.get("slug") or make_slug(lc["contratante_nome"], lc["data_show"])
+
     if lc["contrato_url_publica"]:
-        contrato_link = tracker_url(
-            "contrato", lc["contrato_url_publica"], label=f"{label_base} (contrato)"
-        )
-        contrato_linha = f"📄 Contrato: {contrato_link}"
+        contrato_linha = f"📄 Contrato: {short_url('c', slug)}"
     else:
         contrato_linha = "📄 Contrato: (em anexo)"
-    camarim_link = tracker_url("camarim", CAMARIM_URL, label=f"{label_base} (camarim)")
-    rider_link = tracker_url("rider", RIDER_URL, label=f"{label_base} (rider)")
+    camarim_linha = f"🛋️ Camarim: {short_url('cam', slug)}"
+    rider_linha = f"🎤 Rider: {short_url('r', slug)}"
 
     mensagem_wpp = (
         f"Olá! Segue o contrato para o show no dia {lc['data_show_ext']}, "
         f"junto com o camarim e o rider técnico.\n\n"
         f"{contrato_linha}\n"
-        f"🛋️ Camarim: {camarim_link}\n"
-        f"🎤 Rider: {rider_link}\n\n"
+        f"{camarim_linha}\n"
+        f"{rider_linha}\n\n"
         f"Qualquer dúvida estou à disposição. — MaLuê"
     )
     wpp_url = "https://wa.me/?text=" + urllib.parse.quote(mensagem_wpp)
@@ -643,7 +718,7 @@ if st.session_state.last_contract:
           📲 Abrir WhatsApp com mensagem pronta
         </a>
         <small style="display:block;margin-top:0.4rem;color:#666;">
-          A mensagem já vai com os 3 links (contrato, camarim e rider) prontos
+          A mensagem já vai com os 3 links curtos (contrato, camarim e rider) prontos
           pro cliente clicar e abrir. Os botões de download acima ficam pra
           caso você queira anexar os PDFs também.
         </small>
